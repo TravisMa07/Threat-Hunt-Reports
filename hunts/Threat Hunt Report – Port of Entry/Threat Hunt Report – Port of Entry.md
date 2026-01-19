@@ -85,7 +85,7 @@ _All flags below are collapsible for readability._
 ---
 
 <details>
-<summary id="flag-1"><strong>Flag 1: <Technique Name></strong></summary>
+<summary id="flag-1"><strong>Flag 1: INITIAL ACCESS - Remote Access Source</strong></summary>
 
 ### Objective
 Identifying inital access point of the adversary via Remote Desktop Protocol (RDP) connection.
@@ -115,85 +115,111 @@ RDP connections leave network traces that identify the source of the unauthorize
 ---
 
 <details>
-<summary id="flag-2"><strong>Flag 2: <Technique Name></strong></summary>
+<summary id="flag-2"><strong>Flag 2: INITIAL ACCESS - Compromised User Account</strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+Identify the credentials and account that was compromised.
 
 ### Finding
-<High-level description of the activity>
+The account that was compromised during inital access is `kenji.sato`.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceLogonEvents
+| where TimeGenerated between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where RemoteIP == "88.97.178.12"
+| order by TimeGenerated asc
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="608" height="97" alt="image" src="https://github.com/user-attachments/assets/ccabb9fd-a1be-45dd-af22-2d21ce152060" />
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+The compromised account/credentials has been found and the scope of the unauthorized access can further help guide the remediation efforts including password resets and privilege reviews.
 
 </details>
 
 ---
 <details>
-<summary id="flag-3"><strong>Flag 3: <Technique Name></strong></summary>
+<summary id="flag-3"><strong>Flag 3: DISCOVERY - Network Reconnaissance</strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+After threat actor gain access to the compromised account, the objective is to find any potential sign of lateral movement opportunities taken by the adversary via reconnaissance.
 
 ### Finding
-<High-level description of the activity>
+While searching the DeviceProcessEvents logs, `ARP.EXE -a` was ran for network enumeration by the compromised account.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceProcessEvents 
+| where TimeGenerated >= todatetime('2025-11-19T00:57:13.0087357Z') 
+| where AccountName == "kenji.sato" 
+| project TimeGenerated, AccountName, ProcessCommandLine
+| where ProcessCommandLine contains "arp"
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="494" height="135" alt="image" src="https://github.com/user-attachments/assets/10d47935-3509-4bdc-a409-44753d96792c" />
+
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+Attackers enumerate network topology to identify other computers, devices, and the associated MAC addresses nearby. By doing this, attackers conduct discovery to identify any lateral movement opportunities and high-value targets. This is also a key indicator of the start of an advanced persistent threats (APT).
 
 </details>
 
 ---
 <details>
-<summary id="flag-4"><strong>Flag 4: <Technique Name></strong></summary>
+<summary id="flag-4"><strong>Flag 4: DEFENCE EVASION - Malware Staging Directory<Technique Name></strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+Identifying the primary staging location where the threat actor is organizing their tools, executables, and stolen data. 
 
 ### Finding
-<High-level description of the activity>
+While searching the DeviceProcessEvents log for the creation of directories, `"attrib.exe" +h +s C:\ProgramData\WindowsCache` was ran. The command contains `attrib.exe`, which is a tool used to view and modify file and folder attributes. The directory `C:\ProgramData\WindowsCache` was created with the purpose to hide it (+h), label it as system critical (+s), and use it throughout the attack for multiple malicious tasks.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceProcessEvents 
+| where TimeGenerated >= todatetime('2025-11-19T00:57:13.0087357Z') 
+| where AccountName == "kenji.sato" 
+| where ProcessCommandLine contains "attrib"
+| project TimeGenerated, AccountName, DeviceName, ProcessCommandLine
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="514" height="71" alt="image" src="https://github.com/user-attachments/assets/fce2c51c-1d68-48d7-b03b-fa0235d003e6" />
+
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+Threat actors generate lots of temporary folders during an intrusion, but typically only one folder is used as their main working area. The primary staging directory is the folder that they intentionally create, hide, and use throughout an attack to store malware, stolen data, tools, C2, and many more malicious activites. 
 
 </details>
 
 ---
 <details>
-<summary id="flag-5"><strong>Flag 5: <Technique Name></strong></summary>
+<summary id="flag-5"><strong>Flag 5: DEFENCE EVASION - File Extension Exclusions</strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+After inital access and beginning to stage their attack, attackers implement multiple defence evasion methodology. One of the method is for attackers to add file extension exclusions to Windows Defender to prevent scanning of malicious activites. 
 
 ### Finding
-<High-level description of the activity>
+While searching the DeviceRegistryEvents logs, `3 file extension exclusion` can be found via modification/setting registry values at `"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Exclusions\Extensions"`. These file extension exclusions are `.exe`, `.ps1`, `.bat`.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceRegistryEvents
+| where TimeGenerated between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where RegistryKey contains @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Exclusions\Extensions"
+| where DeviceName contains "azuki"
+| project TimeGenerated, DeviceName, ActionType, RegistryKey, RegistryValueName
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="515" height="47" alt="image" src="https://github.com/user-attachments/assets/e6a86c86-1280-42e0-9e65-5b591bd171b8" />
+
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+Attackers are modifying Windows Defender exclusions so defender does not scan for certain file extensions during their AV scan. IF defender ignores those extensions, malware with those file types can be run freely.
 
 </details>
 
