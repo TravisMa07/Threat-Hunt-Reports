@@ -307,7 +307,7 @@ Schedulded tasks are a low-noise persistence mehanism that blend easily with rou
 
 ---
 <details>
-<summary id="flag-9"><strong>Flag 9: <Technique Name></strong></summary>
+<summary id="flag-9"><strong>Flag 9: PERSISTENCE - Scheduled Task Target</strong></summary>
 
 ### Objective
 Identify the malware artifact executed by the persistence mechanism.
