@@ -225,64 +225,83 @@ Attackers are modifying Windows Defender exclusions so defender does not scan fo
 
 ---
 <details>
-<summary id="flag-6"><strong>Flag 6: <Technique Name></strong></summary>
+<summary id="flag-6"><strong>Flag 6: DEFENCE EVASION - Temporary Folder Exclusion<Technique Name></strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+After inital access and beginning to stage their attack, attackers implement multiple defence evasion methodology. Attackers add folder path exclusions to Windows Defender to prevent scanning of directories.
 
 ### Finding
-<High-level description of the activity>
+While searching DeviceRegistryEvents logs, temporary folders/directories can be found excluded in the registry path `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Exclusions\Path`. These temporary folder path exclusions are `C:\Users\KENJI~1.SAT\AppData\Local\Temp`.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceRegistryEvents
+| where TimeGenerated between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where RegistryKey contains @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Exclusions\Path"
+| where DeviceName contains "azuki"
+| project TimeGenerated, DeviceName, ActionType, RegistryKey, RegistryValueName
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="509" height="80" alt="image" src="https://github.com/user-attachments/assets/40b0407f-1388-43bc-8e95-16a190ea17aa" />
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+Windows Defender typically scans files inside temporary folders which is bad for attackers due to malware often getting downloaded or unpacked in temporary folders. The attackers add a folder exclusion for temporary folder thus making it a perfect hiding spot of malware, scripts, tools, exfilitration, etc.
 
 </details>
 
 ---
 <details>
-<summary id="flag-7"><strong>Flag 7: <Technique Name></strong></summary>
+<summary id="flag-7"><strong>Flag 7: DEFENCE EVASION - Download Utility Abuse</strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+Identify the attacker tool use to download files.
 
 ### Finding
-<High-level description of the activity>
+The threat actor leveraged `certutil.exe` to download malware into the staging directory. Certutil is a native Windows binary capable of performing downloads and is a common LOLBIN.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceProcessEvents
+| where TimeGenerated between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where DeviceName contains "azuki"
+| where ProcessCommandLine contains "http" and ProcessCommandLine contains "WindowsCache"
+| project TimeGenerated, AccountName, DeviceName, ActionType, FileName, ProcessCommandLine
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="901" height="193" alt="image" src="https://github.com/user-attachments/assets/73864799-bc34-4e7c-80eb-a4751210aaaa" />
+
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+LOLBIN abuse allows attackers to download payloads without introducing obvious tooling into the environment that may be detected by the organization defensive measures. Certutil misuse is commonly associated with post-compromise staging for credential dumping or C2 implants.
 
 </details>
 
 ---
 <details>
-<summary id="flag-8"><strong>Flag 8: <Technique Name></strong></summary>
+<summary id="flag-8"><strong>Flag 8: PERSISTENCE - Scheduled Task Name</strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+Detect persistence mechanisms that allow malware to consistently execute after reboot or on time-based triggers.
 
 ### Finding
-<High-level description of the activity>
+Threat actor created a schedulded task named `Windows Update Check` to achieve persistence, blending in with real Windows maintenance processes.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceProcessEvents
+| where TimeGenerated between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where DeviceName contains "azuki"
+| where ProcessCommandLine contains "schtasks.exe"
+| project TimeGenerated, AccountName, DeviceName, FileName, ProcessCommandLine
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="902" height="142" alt="image" src="https://github.com/user-attachments/assets/f3af6341-3464-49b5-ab55-30abb254fc08" />
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+Schedulded tasks are a low-noise persistence mehanism that blend easily with routine administrative operations. The naming choice suggests the attackers inteded to avoid analyst detection and align with Windows update processes.
 
 </details>
 
@@ -291,250 +310,330 @@ Attackers are modifying Windows Defender exclusions so defender does not scan fo
 <summary id="flag-9"><strong>Flag 9: <Technique Name></strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+Identify the malware artifact executed by the persistence mechanism.
 
 ### Finding
-<High-level description of the activity>
+The schedulded task was configured to execute `C:\ProgramData\WindowsCache\svchost.exe`, aligning with the established malware staging directory.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceProcessEvents
+| where TimeGenerated between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where DeviceName contains "azuki"
+| where ProcessCommandLine contains "schtasks.exe"
+| project TimeGenerated, AccountName, DeviceName, FileName, ProcessCommandLine
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="902" height="142" alt="image" src="https://github.com/user-attachments/assets/f3af6341-3464-49b5-ab55-30abb254fc08" />
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+Linknig persistence directly to an executable inside the hidden staging directory confirms operational use of that directory and connects the evasion, staging, and persistence phases into a cohesive cyber kill-chain narrative.
 
 </details>
 
 ---
 <details>
-<summary id="flag-10"><strong>Flag 10: <Technique Name></strong></summary>
+<summary id="flag-10"><strong>Flag 10: COMMAND & CONTROL - C2 Server Address</strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+Identify outbound connections supporting post-exploitation command and control.
 
 ### Finding
-<High-level description of the activity>
+Outbound connections were observed to `78.141.196.6` over HTTPS (TCP/443), indicative of encrypted C2 traffic.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceNetworkEvents
+| where TimeGenerated between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where DeviceName contains "azuki"
+| where InitiatingProcessCommandLine contains "svchost.exe"
+| where InitiatingProcessFolderPath contains @"C:\ProgramData\WindowsCache\svchost.exe"
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="900" height="73" alt="image" src="https://github.com/user-attachments/assets/b32f8ed4-7bf2-4b37-b97a-17c1fca135df" />
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+Encrypted web protocols signifcantly reduce detection visibility and logistics. Identifying C2 infrastructure supports threat attribution, blocking, and external reporting.
 
 </details>
 
 ---
 <details>
-<summary id="flag-11"><strong>Flag 11: <Technique Name></strong></summary>
+<summary id="flag-11"><strong>Flag 11: COMMAND & CONTROL - C2 Communication Port</strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+Determine the protocol and port used to tunnel C2 traffic.
 
 ### Finding
-<High-level description of the activity>
+The remote port used for C2 communication was `443`, indicating HTTPS-based communication
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceNetworkEvents
+| where TimeGenerated between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where DeviceName contains "azuki"
+| where InitiatingProcessCommandLine contains "svchost.exe"
+| where InitiatingProcessFolderPath contains @"C:\ProgramData\WindowsCache\svchost.exe"
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="900" height="73" alt="image" src="https://github.com/user-attachments/assets/b32f8ed4-7bf2-4b37-b97a-17c1fca135df" />
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+8443, 443, and 4443 are common ports for C2 frameworks disguised as encrypted traffic. This has operational implications for proxy detection, TLS inspection, and firewall telemetry.
 
 </details>
 
 ---
 <details>
-<summary id="flag-12"><strong>Flag 12: <Technique Name></strong></summary>
+<summary id="flag-12"><strong>Flag 12:  CREDENTIAL ACCESS - Credential Theft Tool</strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+Determine what tooling was leveraged to extract authentication artifacts.
 
 ### Finding
-<High-level description of the activity>
+Credential dumping was performed using `mm.exe` inside the staging directory, likely a renamed Mimikatz binary.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceEvents
+| where TimeGenerated between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where DeviceName contains "azuki"
+| where InitiatingProcessFolderPath contains @"C:\ProgramData\WindowsCache"
+| project TimeGenerated, ActionType, InitiatingProcessFileName, InitiatingProcessFolderPath, FileName
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="841" height="222" alt="image" src="https://github.com/user-attachments/assets/a6487fd3-3c28-4aef-b1fc-d621f4c7c873" />
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+Renaming offensive tooling is a known signature of evasion techniques. Credential dumping represents a pivot point in the attack, increasing post-compromise access and scope.
 
 </details>
 
 ---
 <details>
-<summary id="flag-13"><strong>Flag 13: <Technique Name></strong></summary>
+<summary id="flag-13"><strong>Flag 13: CREDENTIAL ACCESS - Memory Extraction Module</strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+Identify what internal module was invoked to extract logon credentials.
 
 ### Finding
-<High-level description of the activity>
+The attacker executed `sekurlsa::logonpasswords` against LSASS.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceEvents
+| where TimeGenerated between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where DeviceName contains "azuki"
+| where InitiatingProcessFolderPath contains @"C:\ProgramData\WindowsCache"
+| project TimeGenerated, ActionType, InitiatingProcessCommandLine ,InitiatingProcessFileName, InitiatingProcessFolderPath, FileName
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="931" height="157" alt="image" src="https://github.com/user-attachments/assets/4d72fffb-a7c2-4b3f-b67f-6d6fd6c7c0f6" />
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+This action indicates direct credential harvesting and preparation for lateral movement or privilege escalation.
 
 </details>
 
 ---
 <details>
-<summary id="flag-14"><strong>Flag 14: <Technique Name></strong></summary>
+<summary id="flag-14"><strong>Flag 14: COLLECTION - Data Staging Archive</strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+Determine how the attacker packaged data prior to exfiltration.
 
 ### Finding
-<High-level description of the activity>
+Stolen data was compressed into `export-data.zip` inside the staging directory.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceFileEvents
+| where TimeGenerated between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where DeviceName contains "azuki"
+| where FolderPath contains @"C:\ProgramData\WindowsCache"
+| where FileName endswith ".zip"
+| project TimeGenerated, ActionType, DeviceName, FileName, FolderPath
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="939" height="69" alt="image" src="https://github.com/user-attachments/assets/c6df4c82-84bc-462c-beaf-170ad20de175" />
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+Data archiving indicates a methodical approach to data theft and minimizes transfer size. Compression also obscures file structre from basic content inspection.
 
 </details>
 
 ---
 <details>
-<summary id="flag-15"><strong>Flag 15: <Technique Name></strong></summary>
+<summary id="flag-15"><strong>Flag 15: EXFILTRATION - Exfiltration Channel</strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+Identify cloud services abused for outbound data exfiltration.
 
 ### Finding
-<High-level description of the activity>
+Outbound transfer of staged data occured over `Discord`, a common dual-use platform abused for malware C2 and data exfiltration.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceNetworkEvents
+| where TimeGenerated between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where InitiatingProcessCommandLine contains "WindowsCache"
+| where RemotePort == "443"
+| project TimeGenerated, ActionType, InitiatingProcessCommandLine, RemoteUrl, RemoteIP, RemotePort
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="936" height="40" alt="image" src="https://github.com/user-attachments/assets/90f751aa-5a45-4f6c-9722-24eda98ba898" />
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+Exfiltration via legitimate SaaS platforms complicates response, blending with normal traffic and often bypassing egress controls.
 
 </details>
 
 ---
 <details>
-<summary id="flag-16"><strong>Flag 16: <Technique Name></strong></summary>
+<summary id="flag-16"><strong>Flag 16: ANTI-FORENSICS - Log Tampering</strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+Identify attempts to remove foresnic artifacts post-compromise.
 
 ### Finding
-<High-level description of the activity>
+The attacker cleared the `Security` event log first via `wevtutil.exe`, indicating a conscious effort for destruction of evidence. Other clearing of logs include System and Application logs.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceProcessEvents
+| where TimeGenerated > todatetime('2025-11-19T19:09:21.4234133Z')
+| where DeviceName contains "azuki"
+| where ProcessCommandLine contains "wevtutil.exe"
+| order by Timestamp asc
+| project TimeGenerated, DeviceName, ActionType, FileName, ProcessCommandLine
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="934" height="148" alt="image" src="https://github.com/user-attachments/assets/63046711-908a-4126-b982-95c38e15ac3c" />
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+Anti-forensics actions hinder detection, incident reconstruction, and post-breach investigation. This is a sign of APT and elevated attacker maturity.
 
 </details>
 
 ---
 <details>
-<summary id="flag-17"><strong>Flag 17: <Technique Name></strong></summary>
+<summary id="flag-17"><strong>Flag 17: IMPACT - Persistence Account/strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+Determine whether long-term persistent access was provisioned.
 
 ### Finding
-<High-level description of the activity>
+A hidden administrator account `support` was created to maintain post-removal access.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceProcessEvents
+| where TimeGenerated > todatetime('2025-11-19T19:09:21.4234133Z')
+| where DeviceName contains "azuki"
+| where ProcessCommandLine contains "/add"
+| order by TimeGenerated asc
+| project TimeGenerated, DeviceName, FileName, ProcessCommandLine
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="930" height="107" alt="image" src="https://github.com/user-attachments/assets/cbdcd433-a26b-4b33-858e-d53935cb78c8" />
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+Local administrative accounts create durable footholds with no external dependencies and bypass centralized authentication controls
 
 </details>
 
 ---
 <details>
-<summary id="flag-18"><strong>Flag 18: <Technique Name></strong></summary>
+<summary id="flag-18"><strong>Flag 18: EXECUTION - Malicious Script</strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+Identify inital scripted execution mechanisms.
 
 ### Finding
-<High-level description of the activity>
+The attacker executed `wupdate.ps1`, a PowerShell script automating payload download, persistence, and credential dumping.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceFileEvents
+| where TimeGenerated between (datetime(2025-11-19) .. datetime(2025-11-20))
+| where DeviceName contains "azuki"
+| where FileName endswith ".ps1"
+| where FolderPath contains "temp"
+| where ActionType == "FileCreated"
+| order by TimeGenerated asc
+| project TimeGenerated, DeviceName, FileName, FolderPath, InitiatingProcessCommandLine
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="942" height="63" alt="image" src="https://github.com/user-attachments/assets/c1524ad3-3571-43e4-9bc1-432c919d37b5" />
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+PowerShell provides a rich post-exploitation environment and is heavily abused due to its native execution and administrative capabiltiies.
 
 </details>
 
 ---
 <details>
-<summary id="flag-19"><strong>Flag 19: <Technique Name></strong></summary>
+<summary id="flag-19"><strong>Flag 19: LATERAL MOVEMENT - Secondary Target</strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+Identify systems the threat actor attempted to pivot into.
 
 ### Finding
-<High-level description of the activity>
+The attacker targeted `10.1.0.188` for lateral movement, likely a domain-connected internal host.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceProcessEvents
+| where TimeGenerated > todatetime('2025-11-19T18:37:41.1147957Z')
+| where DeviceName  contains "azuki"
+| where ProcessCommandLine contains "cmdkey" or ProcessCommandLine contains "mstsc"
+| order by TimeGenerated asc
+| project Timestamp, DeviceName, FileName, ProcessCommandLine
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="936" height="240" alt="image" src="https://github.com/user-attachments/assets/0a46a16a-1ee5-4b11-994c-40db5c2602dc" />
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+Lateral movement indicates attackers were exploring privilege expansion or access to additional data sources.
 
 </details>
 
 ---
 <details>
-<summary id="flag-20"><strong>Flag 20: <Technique Name></strong></summary>
+<summary id="flag-20"><strong>Flag 20: LATERAL MOVEMENT - Remote Access Tool</strong></summary>
 
 ### Objective
-<What the attacker was trying to accomplish>
+Determine tooling leveraged for later stages of remote system access.
 
 ### Finding
-<High-level description of the activity>
+The attacker utilized `mstsc.exe` for lateral movement over RDP.
 
 ### KQL Query
-<KQL query use>
+```kql
+DeviceProcessEvents
+| where TimeGenerated > todatetime('2025-11-19T18:37:41.1147957Z')
+| where DeviceName  contains "azuki"
+| where ProcessCommandLine contains "10.1.0.188"
+| order by TimeGenerated asc
+| project Timestamp, DeviceName, FileName, ProcessCommandLine
+```
 
 ### Evidence
-<screenshot of logs>
+<img width="921" height="125" alt="image" src="https://github.com/user-attachments/assets/346ca990-72e1-43dc-9a51-efc462ab4e2a" />
 
 ### Why it Matters
-<impact of the attack and its context with defender relevance>
+Native RDP usage blends with IT administrative baselines, resulting in low detection noise and reduced operational footprint.
 
 </details>
 
@@ -545,27 +644,21 @@ Attackers are modifying Windows Defender exclusions so defender does not scan fo
 ## Detection Gaps & Recommendations
 
 ### Observed Gaps
-- <Placeholder>
-- <Placeholder>
-- <Placeholder>
+- Lack of outbound TLS inspection limited visiblity into encrypted C2 and exfiltration traffic
+- Defender exclusions were not centrally audited or blocked, enabling AV evasion
+- PowerShell execution lacked script block logging for forensic recovery
 
 ### Recommendations
-- <Placeholder>
-- <Placeholder>
-- <Placeholder>
+- Implement TLS inspection for egress to detect cloud service abuse
+- Harden Defender configuration and enforce exclusion approval workflows
+- Enable PowerShell Script Block logging + AMSI logging
+- Deploy network-level egress filtering to restrict outbound SaasS abuse
+- Implement privileged access management to reduce credential reuse exposure
 
 ---
 
 ## Final Assessment
 
-<Concise executive-style conclusion summarizing risk, attacker sophistication, and defensive posture.>
-
----
-
-## Analyst Notes
-
-- Report structured for interview and portfolio review  
-- Evidence reproducible via advanced hunting  
-- Techniques mapped directly to MITRE ATT&CK  
+The intrusion demonstrated a coherent kill chain involving credential theft, encrypted C2, AV evasion, and targeted exfiltration. The attacker exhibited intermediate sophiscation, leveraging LOLBINs, staging directories, schedulded tasks, and anti-forensic techniques. Defensive controls were insufficent in credential handling, AV configuration, and outbound service abuse monitoring. The adversary achieved their operational objective: data theft impacting competitive negotiations.
 
 ---
