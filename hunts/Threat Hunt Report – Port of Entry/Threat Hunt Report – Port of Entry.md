@@ -46,7 +46,6 @@ The following report outlines the cyber kill chain, mapping it to MITRE ATT&CK, 
   - [Flag 20](#flag-20)
 - [Detection Gaps & Recommendations](#detection-gaps--recommendations)
 - [Final Assessment](#final-assessment)
-- [Analyst Notes](#analyst-notes)
 
 ---
 
