@@ -1,19 +1,23 @@
-# Threat Hunt Report – <Hunt Name>
+# Threat Hunt Report – The Helpdesk Deception
 
 ---
 
 ## Executive Summary
 
-<Brief, high-level overview of the threat hunt.  
-Answer what happened, why it matters, and what was discovered in 3–4 sentences.>
+During the first half of October 2025, multiple intern-operated machines began spawning processes originating from their Downloads directories containing suspicious keywords such as “support,” “help,” and “tool.” Investigation identified the host gab-intern-vm as the most anomalous system exhibiting a chain of suspicious activity disguised as a support troubleshooting session.
+
+Telemetry revealed the execution of a PowerShell support tool followed by a series of reconnaissance actions including clipboard inspection, session discovery, privilege enumeration, and runtime process inventory. The activity progressed into connectivity validation, artifact staging, simulated outbound data transfer attempts, and persistence creation through scheduled tasks and autorun registry entries.
+
+The final stage of the activity involved planting a support chat log artifact, likely intended to justify the suspicious actions as legitimate IT assistance. The sequence of events indicates a deliberately staged narrative designed to mask reconnaissance and persistence mechanisms, highlighting the importance of correlating process behavior, network telemetry, and artifact timing rather than trusting contextual explanations.
 
 ---
 
 ## Scope & Environment
 
-- **Environment:** <Placeholder>  
-- **Data Sources:** <Placeholder>  
-- **Timeframe:** <YYYY-MM-DD → YYYY-MM-DD>  
+- **Environment:** Windows Endpoint – Intern Workstation
+- **Device Investigated:** gab-intern-vm
+- **Data Sources:** DeviceProcessEvents, DeviceNetworkEvents, DeviceFileEvents, DeviceRegistryEvents
+- **Timeframe:** 2025-10-01 → 2025-10-15
 
 ---
 
@@ -36,11 +40,6 @@ Answer what happened, why it matters, and what was discovered in 3–4 sentences
   - [Flag 13](#flag-13)
   - [Flag 14](#flag-14)
   - [Flag 15](#flag-15)
-  - [Flag 16](#flag-16)
-  - [Flag 17](#flag-17)
-  - [Flag 18](#flag-18)
-  - [Flag 19](#flag-19)
-  - [Flag 20](#flag-20)
 - [Detection Gaps & Recommendations](#detection-gaps--recommendations)
 - [Final Assessment](#final-assessment)
 
@@ -50,18 +49,20 @@ Answer what happened, why it matters, and what was discovered in 3–4 sentences
 
 | Flag | Technique Category | MITRE ID | Tactic |
 |-----:|-------------------|----------|----------|
-| 1 | <Placeholder> | <Placeholder> | <Placeholder> |
-| 2 | <Placeholder> | <Placeholder> | <Placeholder> |
-| 3 | <Placeholder> | <Placeholder> | <Placeholder> |
-| 4 | <Placeholder> | <Placeholder> | <Placeholder> |
-| 5 | <Placeholder> | <Placeholder> | <Placeholder> |
-| 6 | <Placeholder> | <Placeholder> | <Placeholder> |
-| 7 | <Placeholder> | <Placeholder> | <Placeholder> |
-| 8 | <Placeholder> | <Placeholder> | <Placeholder> |
-| 9 | <Placeholder> | <Placeholder> | <Placeholder> |
-| 10 | <Placeholder> | <Placeholder> | <Placeholder> |
-| 11 | <Placeholder> | <Placeholder> | <Placeholder> |
-| 12 | <Placeholder> | <Placeholder> | <Placeholder> |
+| 1 | Command and Scripting Interpreter: PowerShell | T1059.001 | Execution |
+| 2 | Impair Defenses | T1562 | Defense Evasion
+ |
+| 3 | Clipboard Data | T1115 | Collection |
+| 4 | Remote System Discovery | T1018 | Discovery |
+| 5 | System Information Discovery | T1082 | Discovery |
+| 6 | Network Service Discovery | T1046 | Discovery |
+| 7 | System Owner/User Discovery | T1033 | Discovery |
+| 8 | Process Discovery
+ | T1057 | Discovery |
+| 9 | Account Discovery | T1087 | Discovery |
+| 10 | Application Layer Protocol: Web Protocols | T1071.001 | Command and Control |
+| 11 | Data Staged: Local Data Staging | T1074.001 | Collection |
+| 12 | Exfiltration Over Web Service: Exfiltration Over Webhook | T1567.004 | Exfiltration |
 | 13 | <Placeholder> | <Placeholder> | <Placeholder> |
 | 14 | <Placeholder> | <Placeholder> | <Placeholder> |
 | 15 | <Placeholder> | <Placeholder> | <Placeholder> |
