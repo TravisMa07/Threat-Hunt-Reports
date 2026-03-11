@@ -451,19 +451,25 @@ Attackers sometimes leave artifacts designed to explain or disguise suspicious a
 ## Detection Gaps & Recommendations
 
 ### Observed Gaps
-- <Placeholder>
-- <Placeholder>
-- <Placeholder>
+- Download directory executions were not restricted or monitored
+- PowerShell script execution lacked sufficient logging controls
+- Persistence mechanisms (scheduled tasks and registry run keys) were not centrally audited
+- Outbound connectivity checks were allowed without anomaly detection
 
 ### Recommendations
-- <Placeholder>
-- <Placeholder>
-- <Placeholder>
+- Enable PowerShell Script Block Logging and AMSI integration
+- Monitor Downloads directory execution events
+- Implement scheduled task and registry persistence monitoring
+- Deploy egress filtering and network anomaly detection
+- Create detections for common reconnaissance commands (tasklist, whoami, qwinsta, wmic)
 
 ---
 
 ## Final Assessment
 
-<Concise executive-style conclusion summarizing risk, attacker sophistication, and defensive posture.>
+The activity observed on gab-intern-vm demonstrates a structured sequence of reconnaissance, connectivity validation, artifact staging, persistence establishment, and narrative manipulation designed to resemble a legitimate support session. The operations indicate deliberate attempts to gather system intelligence, validate exfiltration paths, and maintain access through scheduled tasks and registry-based persistence.
+
+Although some actions appear simulated or staged, the behavioral pattern closely resembles early-stage intrusion tradecraft used by threat actors performing host reconnaissance and persistence preparation. The investigation highlights the importance of correlating system telemetry and behavioral indicators rather than relying on contextual explanations provided by artifacts left behind.
+
 
 ---
